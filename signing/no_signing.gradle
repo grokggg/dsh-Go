@@ -1,0 +1,91 @@
+/*
+ * no_signing.gradle — DSH-Go 无签名构建配置
+ *
+ * 功能：
+ *   1. 为 debug buildType 提供内置 debug keystore，避免 "keystore was tampered" 错误
+ *   2. 为 release buildType 跳过签名验证，允许生成未签名的 release APK
+ *
+ * 用法（在 app/android/build.gradle 顶部添加）：
+ *   apply from: 'no_signing.gradle'
+ *
+ * 之后执行：
+ *   ./gradlew assembleDebug      → 输出已签名的 debug APK
+ *   ./gradlew assembleRelease    → 输出未签名的 release APK（跳过签名验证）
+ */
+
+android {
+    // ── Debug 签名配置 ─────────────────────────────────────────────
+    // 使用 Android SDK 自带的 debug keystore，路径由 sdk.dir 决定
+    // 若不存在则自动生成（Gradle 会调用 DebugKeystore.generateKeystore）
+    signingConfigs {
+        debug {
+            storeFile     file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword "android"
+            keyAlias      "androiddebugkey"
+            keyPassword   "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+
+        // ── Release：跳过签名验证 ──────────────────────────────────
+        // 注意：未签名的 release APK 无法在大多数 Android 设备上直接安装
+        // （会报 "INSTALL_FAILED_INVALID_APK" 或 "has no certificates"）
+        // 如需安装，请改用 assembleDebug，或使用下面的 debug 签名
+        release {
+            // 显式不使用任何签名配置
+            signingConfig null
+            // 跳过 Gradle 的签名验证任务
+            // 注：某些 Gradle 版本可能需要同时禁用 minify 和 zipAlign
+        }
+    }
+
+    // ── 强制禁用校验任务 ───────────────────────────────────────────
+    // 确保 release 构建不会因为缺少签名而中断
+    afterEvaluate {
+        tasks.matching { task ->
+            task.name.contains("ValidateSigning") ||
+            task.name.contains("SigningConfig") ||
+            task.name.contains("packageRelease")
+        }.configureEach { task ->
+            // 仅对 release 任务跳过
+            if (task.name.contains("Release")) {
+                task.enabled = false
+            }
+        }
+    }
+
+    // ── 备用方案：用 debug 签名签 release ──────────────────────────
+    // 如果上面 "跳过签名" 导致无法安装，取消下面的注释：
+    //
+    // buildTypes {
+    //     release {
+    //         signingConfig signingConfigs.debug  // ← 用 debug 签名签 release
+    //     }
+    // }
+    //
+    // 这样 assembleRelease 输出的 APK 带有 debug 签名，可以正常安装
+}
+
+/*
+ * ════════════════════════════════════════════════════════════════
+ * 安装方式说明
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【方式 A】推荐 — debug 签名安装（最稳定）
+ *   ./gradlew assembleDebug
+ *   adb install -r app/android/build/outputs/apk/debug/app-android-debug.apk
+ *
+ * 【方式 B】release 未签名（部分设备可用）
+ *   ./gradlew assembleRelease
+ *   adb install -r -t app/android/build/outputs/apk/release/app-android-release-unsigned.apk
+ *   # -t = 允许 test-only 包
+ *
+ * 【方式 C】release + debug 签名（最稳妥）
+ *   取消上面 "备用方案" 注释，重新编译
+ *   ./gradlew assembleRelease
+ *   adb install -r app/android/build/outputs/apk/release/app-android-release.apk
+ */

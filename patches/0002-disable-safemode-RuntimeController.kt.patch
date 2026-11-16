@@ -1,0 +1,68 @@
+--- a/app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/RuntimeController.kt
++++ b/app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/RuntimeController.kt
+@@ -70,7 +70,8 @@
+      * the run we observed, so a repeated observation from a completed waiter is still an active process. */
+     @Volatile private var safeState = SafeState.parse(prefs.getString(K_SAFE_STATE, null))
+ 
+-    init { prefs.registerOnSharedPreferenceChangeListener(this) }
++    init { prefs.registerOnSharedPreferenceChangeListener(this)
++        safeState = SafeState.OFF }  // [GOPURGE] 强制安全模式为 OFF，覆盖 SharedPreferences 持久化值
+ 
+     private val worker = SerialWorker("dsh-runtime")
+ 
+@@ -229,7 +230,7 @@
+ 
+     fun isSafeRun(): Boolean {
+         val active = process != null || phase == Phase.STARTING || phase == Phase.RUNNING || phase == Phase.STOPPING
+-        return if (active) runSafe else safeState == SafeState.ON
++        return if (active) false else false  // [GOPURGE] 永远返回 false，无安全运行
+     }
+ 
+     // �ideas: needs to run after the process started, otherwise the kernel will reparent the new
+@@ -288,10 +289,10 @@
+         pendingVisualReplies = visualReplies
+         if (phase == Phase.RUNNING || phase == Phase.STARTING) return
+         pendingEnv = env
+-        val next = SafePolicy.onStartRequest(safeState, mode)
++        val next = safeState  // [GOPURGE] 忽略 mode 参数，强制 next == safeState，永不切换
+         if (next != safeState) {
+             setSafeState(next, if (next == SafeState.ON) SafePolicy.REASON_MANUAL else safeReason)
+         }
+-        val intent = Intent(app, DshService::class.java).setAction(DshService.ACTION_START)
++        val intent = Intent(app, DshService::class.java).setAction(DshService.ACTION_START)
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) app.startForegroundService(intent) else app.startService(intent)
+     }
+ 
+@@ -494,8 +495,8 @@
+         val rootfs = installer.rootfs
+         val gen = runGen
+         val argv = ArrayList<String>()
+-        val safe = safeState == SafeState.ON
+-        val requested = if (safe) false else directEngine
++        val safe = false  // [GOPURGE] 永远不是 safe 模式
++        val requested = directEngine  // [GOPURGE] safe 为 false，直接使用 directEngine 原始值
+         val direct = requested && DirectLaunch.select(rootfs, requested = true, safe = false).ok
+         val tawc = tawcWanted && !safe && TawcrootLaunch.available(rootfs)  // [GOPURGE] !safe 恒成立
+         setPhase(Phase.STARTING)
+@@ -893,9 +894,11 @@
+     private fun setSafeState(next: SafeState, reason: String?) {
+         safeState = next
+         safeReason = if (next == SafeState.OFF) null else reason
++        if (next != SafeState.OFF) safeState = SafeState.OFF  // [GOPURGE] 双重保险：任何非 OFF 赋值立即回退
+         edit.putString(K_SAFE_STATE, safeState.wire)
+         if (next == SafeState.OFF) edit.remove(K_MOVED)
+         edit.apply()
+     }
+ 
++    /*
+     fun clearProbation() {
+         if (safeState != SafeState.PROBATION) return
+         setSafeState(SafeState.OFF, null)
+@@ -901,6 +904,7 @@
+         safeReason = null
+         edit.apply()
+     }
++    */ // [GOPURGE] 注释掉 clearProbation 避免任何外部调用路径将其重置
+ 
+     fun recordMainCrash(result: RunFailure?) {
+         mainFailure = result
