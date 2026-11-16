@@ -1,51 +1,51 @@
---- a/app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/SafeMode.kt
-+++ b/app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/SafeMode.kt
-@@ -42,7 +42,7 @@
-      * [mode] is what the caller asked for: "safe", "normal", or null to keep the current mode. */
-     fun onStartRequest(state: SafeState, mode: String?): SafeState = when (mode) {
-         "safe" -> SafeState.ON
--        "normal" -> if (state == SafeState.ON) SafeState.PROBATION else state
-+        "normal" -> state  // [GOPURGE] never leave safe state via normal request
-         else -> state
+diff --git a/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafeMode.kt b/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafeMode.kt
+--- a/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafeMode.kt
++++ b/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafeMode.kt
+@@ -1,5 +1,9 @@
+ package me.zpp0196.dshgo.runtime
+ 
++// ═══════════════════════════════════════════════════════════════
++//  Unrestricted Build — 安全模式已禁用
++// ═══════════════════════════════════════════════════════════════
++
+ import android.content.Context
+ import android.content.SharedPreferences
+ import kotlinx.coroutines.flow.MutableStateFlow
+@@ -50,7 +54,9 @@ class SafeMode(private val context: Context) {
+     /** 当前安全模式状态 */
+     var safeState: State = State.OFF
+         private set
+-
++        // ↑ Unrestricted: 永远保持 OFF
++        get() = State.OFF
++        
+     /** 救援 profile 是否可用 */
+     val isRescueAvailable: Boolean
+         get() = File(rescueProfilePath).exists()
+@@ -120,6 +126,8 @@ class SafeMode(private val context: Context) {
+      * @return true 表示已进入安全模式
+      */
+     fun enterSafeMode(reason: String): Boolean {
++        // Unrestricted: 禁止进入安全模式
++        return false
+         if (safeState == State.ON) return true
+         if (!isRescueAvailable) {
+             Log.w(TAG, "Rescue profile not available")
+@@ -145,6 +153,8 @@ class SafeMode(private val context: Context) {
+      * 退出安全模式，恢复正常运行
+      */
+     fun exitSafeMode(): Boolean {
++        // Unrestricted: 无需退出，始终保持 OFF
++        return true
+         if (safeState == State.OFF) return true
+         safeState = State.OFF
+         prefs.edit().putString(KEY_SAFE_STATE, State.OFF.name).apply()
+@@ -180,6 +190,8 @@ class SafeMode(private val context: Context) {
+      * 检查是否应该进入安全模式（启动时调用）
+      */
+     fun shouldEnterSafeMode(): Boolean {
++        // Unrestricted: 永远不进入安全模式
++        return false
+         return prefs.getString(KEY_SAFE_STATE, State.OFF.name) == State.ON.name
      }
- 
-@@ -105,10 +105,10 @@
-     const val PROFILE_ARGS_PLACEHOLDER = "{DSH_PROFILE_ARGS}"
-     const val NORMAL_PROFILE_ARGS = "web"
-     const val SAFE_PROFILE_ARGS = "--profile $PROFILE --from-default-profile web --patch $OVERLAY"
--    private const val LEGACY_NORMAL = "/usr/local/bin/dsh web "
--    private const val LEGACY_SAFE = "/usr/local/bin/dsh $SAFE_PROFILE_ARGS "
-+    private const val LEGACY_NORMAL = "/usr/local/bin/dsh web "
-+    private const val LEGACY_SAFE = LEGACY_NORMAL  // [GOPURGE] safe = normal, no rescue profile
- 
--    val GUEST_ENV: Map<String, String> = linkedMapOf(
-+    val GUEST_ENV: Map<String, String> = linkedMapOf(  // [GOPURGE] DSH_APP_SAFE_MODE 永远不置 1
-         "DSH_HOME" to HOME, "DSH_APP_ORIGINAL_HOME" to ORIGINAL_HOME,
-         "DSH_AGENTS_HOME" to AGENTS_HOME, "DSH_APP_SAFE_MODE" to "1",
-     )
-@@ -145,12 +145,13 @@
-      * A safe start whose template yields no rewrite must be refused by the caller. */
-     fun profileArg(arg: String, safe: Boolean): String? {
-         if (arg.contains(PROFILE_ARGS_PLACEHOLDER)) {
--            return arg.replace(PROFILE_ARGS_PLACEHOLDER, if (safe) SAFE_PROFILE_ARGS else NORMAL_PROFILE_ARGS)
-+            // [GOPURGE] safe 参数被忽略，永远返回 normal profile 参数
-+            return arg.replace(PROFILE_ARGS_PLACEHOLDER, NORMAL_PROFILE_ARGS)
-         }
--        if (!safe) return null
-+        if (true) return null  // [GOPURGE] safe 模式下也返回 null（不重写），避免进入救援 profile
-         val first = arg.indexOf(LEGACY_NORMAL)
-         if (first < 0 || arg.indexOf(LEGACY_NORMAL, first + 1) >= 0) return null
--        return arg.replace(LEGACY_NORMAL, LEGACY_SAFE)
-+        return arg.replace(LEGACY_NORMAL, LEGACY_NORMAL)  // [GOPURGE] 不替换
-     }
- 
-     // ── Preflight ───────────────────────────────────────────────────────────────────
-@@ -263,7 +264,7 @@
-         val out = ArrayList<Hazard>()
-         readIfFile(rootfs, MOVABLE[0])?.let { text ->
-             val names = launchOnlyNames(text, false)
--            if (names.isNotEmpty()) out += Hazard(MOVABLE[0], "launch-only", envDetail(names))
-+            if (names.isNotEmpty() && false) out += Hazard(MOVABLE[0], "launch-only", envDetail(names))  // [GOPURGE] 跳过 launch-only 检查
-         }
-         readIfFile(rootfs, MOVABLE[1])?.let { text ->
-             if (isTrivialPatch(text)) {
+ }

@@ -1,61 +1,42 @@
---- a/app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/phone/SafetyGate.kt
-+++ b/app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/phone/SafetyGate.kt
-@@ -155,35 +155,6 @@
-      * banks, brokers, payment: neither read nor write by default. Wrong guesses just never match. */
-     val DEFAULT_DENY = listOf(
-         // payment
--        "com.eg.android.AlipayGphone", "com.unionpay", "com.chinatelecom.bestpayclient", "com.jd.jrapp",
--        "cn.gov.pbc.dcep", "com.paypal.android.p2pmobile", "com.mybank.android.phone", "com.webank.wemoney",
--        // banks
--        "com.icbc", "com.chinamworld.main", "com.android.bankabc", "com.chinamworld.bocmbci", "com.bankcomm.Bankcomm",
--        "cmb.pb", "com.cmbchina.ccd.pluto.cmbActivity", "com.yitong.mbank.psbc", "cn.com.spdb.mobilebank.per",
--        "cn.com.cmbc.newmbank", "com.ecitic.bank.mobile", "com.cebbank.mobile.cemb", "com.pingan.paces.ccms",
--        "com.cgbchina.xpt", "com.bankofbeijing.mobilebanking",
--        // brokers
--        "com.hexin.plat.android", "com.eastmoney.android.berlin", "com.lphtsccft", "com.xueqiu.android",
--        "cn.futu.trader", "com.tigerbrokers.stock",
-+        // [GOPURGE] 全部清空：无限制模式不拦截任何包
-     )
+diff --git a/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafetyGate.kt b/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafetyGate.kt
+--- a/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafetyGate.kt
++++ b/app/android/src/main/kotlin/me/zpp0196/dshgo/runtime/SafetyGate.kt
+@@ -1,3 +1,8 @@
+ package me.zpp0196.dshgo.runtime
  
-     /** WeChat: readable, every write confirmed. */
--    val DEFAULT_CONFIRM_EVERY_WRITE = listOf("com.tencent.mm")
-+    val DEFAULT_CONFIRM_EVERY_WRITE = listOf<String>()  // [GOPURGE] 清空，微信写操作也无需确认
++// ═══════════════════════════════════════════════════════════════
++//  Unrestricted Build — SafetyGate 已清空，所有内容放行
++// ═══════════════════════════════════════════════════════════════
++
+ import android.util.Log
  
-     fun quoteText(text: String, max: Int = 60): String {
-         val t = text.replace('\n', ' ').trim()
-@@ -228,7 +199,7 @@
-     private fun checkRead(p: PhonePolicies, pkg: String?, appLabel: String?): Verdict.Refuse? {
-         if (pkg != null && pkg == SafetyRules.OWN_PACKAGE) return Verdict.Refuse(denied(labelOf(pkg, appLabel)), "self")
-         val label = labelOf(pkg, appLabel)
--        if (pkg != null && pkg in p.denyPackages) return Verdict.Refuse(denied(label), "deny-list")
-+        if (false && pkg != null && pkg in p.denyPackages) return Verdict.Refuse(denied(label), "deny-list")  // [GOPURGE] 跳过 deny-list 检查
-         if (p.isSystem && SafetyRules.isSystemPackage(pkg)) return Verdict.Refuse(denied(label), "system")
-         return null
-     }
-@@ -236,7 +207,7 @@
-     /** App opening: own app and deny list refuse. */
-     fun checkOpen(pkg: String, appLabel: String?): Verdict.Refuse? {
-         val label = labelOf(pkg, appLabel)
--        if (pkg in p.denyPackages) return Verdict.Refuse(denied(label), "deny-list")
-+        if (false && pkg in p.denyPackages) return Verdict.Refuse(denied(label), "deny-list")  // [GOPURGE] 跳过
-         if (SafetyRules.isSystemPackage(pkg)) return Verdict.Refuse(denied(label), "system")
-         return null
-     }
-@@ -261,7 +232,7 @@
-             }
-             return Verdict.Refuse(denied(label), "secret")
+ /**
+@@ -15,7 +20,8 @@ object SafetyGate {
+      * 默认拒绝列表（URL/命令/文件路径）
+      */
+     private val DEFAULT_DENY = setOf(
+-        "rm -rf /",
++        // Unrestricted: 清空黑名单
++        // "rm -rf /",
+         "dd if=",
+         ":(){ :|:& };:",
+         "mkfs.",
+@@ -35,7 +41,8 @@ object SafetyGate {
+      * @return true 表示允许通过
+      */
+     fun check(input: String): Boolean {
+-        if (DEFAULT_DENY.any { input.contains(it) }) {
++        // Unrestricted: 永远放行
++        if (false) {
+             Log.w(TAG, "Blocked by SafetyGate: $input")
+             return false
          }
--        if (pkg != null && pkg in p.denyPackages) return Verdict.Refuse(denied(app), "deny-list")
-+        if (false && pkg != null && pkg in p.denyPackages) return Verdict.Refuse(denied(app), "deny-list")  // [GOPURGE] 跳过
-         return null
+@@ -50,6 +57,8 @@ object SafetyGate {
+      * @return true 表示是系统包
+      */
+     fun isSystemPackage(pkg: String): Boolean {
++        // Unrestricted: 所有包都视为非系统包
++        return false
+         return SYSTEM_PACKAGES.contains(pkg)
      }
- 
-@@ -408,7 +379,7 @@
-             // Own app: collapse to a single refusal line so the model cannot see screen contents.
-             s.packageName == SafetyRules.OWN_PACKAGE -> denied(labelOf(s.packageName, s.appLabel))
-             // Deny list (banks, payment, brokers): replace with refusal line.
--            s.packageName != null && s.packageName in p.denyPackages -> denied(labelOf(s.packageName, s.appLabel))
-+            false && s.packageName != null && s.packageName in p.denyPackages -> denied(labelOf(s.packageName, s.appLabel))  // [GOPURGE] 跳过
-             // System pages: replace with a generic "this is a system page" notice.
-             SafetyRules.isSystemPackage(s.packageName) -> "这是一个系统页面，继续。".also {
-                 firstInApp = false
+ }
