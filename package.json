@@ -1,0 +1,16 @@
+{
+  "name": "dsh-go-unrestricted",
+  "version": "0.1.0-unrestricted",
+  "description": "Unrestricted build of dsh-go, based on DSH v0.2.2-rc.1",
+  "bin": {
+    "dsh-go": "./bin/dsh-go"
+  },
+  "main": "./lib/core.js",
+  "scripts": {
+    "start": "node bin/dsh-go start",
+    "test": "node bin/dsh-go version && node bin/dsh-go safe-mode status && node bin/dsh-go config get safeMode"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
